@@ -57,10 +57,22 @@ historical site efficiency data. This app automates that entire workflow.
 
 ## Software Architecture
 
+### Stack
+- **Language:** Python 3.12
+- **Package Manager:** uv
+- **Backend:** FastAPI (async API layer between frontend and compute engine)
+- **Frontend:** Streamlit (v1 — single user, fast to ship)
+  - streamlit-pdf-viewer for in-app PDF preview
+  - st.data_editor for PM review/edit table
+- **Database:** SQLite (local, no cloud, no auth)
+- **LLM:** Claude API (anthropic SDK) — direct structured extraction, no agent framework
+- **Charts:** Plotly (Gantt chart, manpower loading)
+- **Export:** MS Project XML format (.xml) — native .mpp requires Java bridge, XML is portable
+
 ### PDF Processing Pipeline
 - pdfplumber / PyMuPDF → structured text/table extraction
 - pdf2image / poppler → rasterize pages for LLM fallback
-- Claude API (claude-sonnet) → LLM extraction on scanned/low-confidence PDFs
+- Claude API (claude-sonnet-4-20250514) → LLM extraction on scanned/low-confidence PDFs
 - Confidence scoring logic → decides which path to take per page
 
 ### LLM Prompt Strategy
@@ -68,6 +80,7 @@ historical site efficiency data. This app automates that entire workflow.
 - Prompt instructs Claude to return JSON only:
   { trade, work_item, quantity, unit }
 - Output is validated and normalized before hitting the review screen
+- No agent framework — single-shot extraction is sufficient for v1
 
 ### Local Data Layer
 - SQLite → stores projects, scope items, efficiency rates, manhour norms
@@ -76,6 +89,32 @@ historical site efficiency data. This app automates that entire workflow.
 ### Frontend
 - Clean, PM-friendly UI (non-technical user)
 - PDF upload → extraction progress indicator → review/edit table → compute → outputs
+- Split-pane layout on review screen: PDF preview (left) + editable table (right)
+
+### Project Structure
+```
+angkin-project-management/
+├── pyproject.toml
+├── .python-version
+├── .env.example
+├── .gitignore
+├── PLAN.md / README.md
+├── app.py                      # Streamlit entry point
+├── pages/                      # Streamlit multipage
+│   ├── 1_Upload_PDF.py
+│   ├── 2_Review_Items.py
+│   ├── 3_History.py
+│   ├── 4_Compute.py
+│   └── 5_Export.py
+├── src/angkin/                  # Core backend modules
+│   ├── config.py
+│   ├── db/                     # SQLite models + CRUD
+│   ├── extraction/             # PDF parsing + LLM fallback
+│   ├── computation/            # Manhours, scheduling, PH norms
+│   └── export/                 # Gantt, manpower, MS Project XML
+├── data/                       # SQLite DB storage
+└── tests/
+```
 
 ## Trades in Scope
 - Civil / Structural
