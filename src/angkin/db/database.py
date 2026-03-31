@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import sqlite3
 from contextlib import contextmanager
-from typing import Any
 
 from angkin.config import DB_PATH
 from angkin.db.models import init_db
@@ -54,6 +53,42 @@ def list_projects() -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Drawing Pages
+# ---------------------------------------------------------------------------
+
+def save_drawing_pages(project_id: int, pages: list[dict]) -> None:
+    """Save rasterized pages for a project. Replaces existing pages."""
+    with get_db() as conn:
+        conn.execute("DELETE FROM drawing_pages WHERE project_id = ?", (project_id,))
+        conn.executemany(
+            """INSERT INTO drawing_pages (project_id, page_number, drawing_type, image_data)
+               VALUES (?, ?, ?, ?)""",
+            [
+                (project_id, p["page_number"], p.get("drawing_type", "Unknown"), p["image_data"])
+                for p in pages
+            ],
+        )
+
+
+def get_drawing_pages(project_id: int) -> list[dict]:
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, project_id, page_number, drawing_type, image_data FROM drawing_pages "
+            "WHERE project_id = ? ORDER BY page_number",
+            (project_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def update_drawing_type(page_id: int, drawing_type: str) -> None:
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE drawing_pages SET drawing_type = ? WHERE id = ?",
+            (drawing_type, page_id),
+        )
+
+
+# ---------------------------------------------------------------------------
 # Scope Items
 # ---------------------------------------------------------------------------
 
@@ -61,28 +96,36 @@ def insert_scope_items(project_id: int, items: list[dict]) -> None:
     with get_db() as conn:
         conn.executemany(
             """INSERT INTO scope_items
-               (project_id, trade, work_item, quantity, unit, source)
-               VALUES (?, ?, ?, ?, ?, ?)""",
+               (project_id, scope, trade, work_item, quantity, unit, basis, source)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             [
                 (
                     project_id,
+                    it.get("scope", ""),
                     it["trade"],
                     it["work_item"],
                     it["quantity"],
                     it["unit"],
-                    it.get("source", "parsed"),
+                    it.get("basis", ""),
+                    it.get("source", "vision"),
                 )
                 for it in items
             ],
         )
 
 
-def get_scope_items(project_id: int) -> list[dict]:
+def get_scope_items(project_id: int, scope: str | None = None) -> list[dict]:
     with get_db() as conn:
-        rows = conn.execute(
-            "SELECT * FROM scope_items WHERE project_id = ? ORDER BY id",
-            (project_id,),
-        ).fetchall()
+        if scope:
+            rows = conn.execute(
+                "SELECT * FROM scope_items WHERE project_id = ? AND scope = ? ORDER BY id",
+                (project_id, scope),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM scope_items WHERE project_id = ? ORDER BY scope, id",
+                (project_id,),
+            ).fetchall()
         return [dict(r) for r in rows]
 
 
@@ -98,9 +141,45 @@ def update_scope_items(items: list[dict]) -> None:
             )
 
 
+def delete_scope_items_for_scope(project_id: int, scope: str) -> None:
+    with get_db() as conn:
+        conn.execute(
+            "DELETE FROM scope_items WHERE project_id = ? AND scope = ?",
+            (project_id, scope),
+        )
+
+
 def delete_scope_item(item_id: int) -> None:
     with get_db() as conn:
         conn.execute("DELETE FROM scope_items WHERE id = ?", (item_id,))
+
+
+# ---------------------------------------------------------------------------
+# Scope Locks
+# ---------------------------------------------------------------------------
+
+def lock_scope(project_id: int, scope: str) -> None:
+    with get_db() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO scope_locks (project_id, scope) VALUES (?, ?)",
+            (project_id, scope),
+        )
+
+
+def unlock_scope(project_id: int, scope: str) -> None:
+    with get_db() as conn:
+        conn.execute(
+            "DELETE FROM scope_locks WHERE project_id = ? AND scope = ?",
+            (project_id, scope),
+        )
+
+
+def get_locked_scopes(project_id: int) -> set[str]:
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT scope FROM scope_locks WHERE project_id = ?", (project_id,)
+        ).fetchall()
+        return {r["scope"] for r in rows}
 
 
 # ---------------------------------------------------------------------------

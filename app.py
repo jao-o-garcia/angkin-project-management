@@ -26,7 +26,7 @@ st.title("🏗️ Angkin")
 st.subheader("Residential Construction Project Scheduler")
 
 st.markdown("""
-**Workflow:** Upload PDF → Review extracted items → Import historical data → Compute schedule → Export
+**Workflow:** Upload drawings → Extract BOQ scope by scope → Review BOQ → Import historical data → Compute schedule → Export
 
 Use the sidebar to navigate between steps.
 """)
