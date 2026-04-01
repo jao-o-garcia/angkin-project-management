@@ -103,7 +103,7 @@ if not is_locked:
 
         with st.spinner(f"Analyzing {len(images)} page(s) for {scope}..."):
             try:
-                items = extract_scope_from_pages(
+                result = extract_scope_from_pages(
                     images=images,
                     scope=scope,
                     drawing_types=drawing_types,
@@ -116,13 +116,17 @@ if not is_locked:
                 st.error(f"Extraction failed: {e}")
                 st.stop()
 
-        if items:
+        if result.items:
             delete_scope_items_for_scope(project_id, scope)
-            insert_scope_items(project_id, [it.to_dict() for it in items])
-            st.success(f"Extracted **{len(items)}** items for **{scope}**. Review and confirm below.")
+            insert_scope_items(project_id, [it.to_dict() for it in result.items])
+            st.success(f"Extracted **{len(result.items)}** items for **{scope}**. Review and confirm below.")
             st.rerun()
         else:
             st.warning("No items extracted. Try selecting different pages or use the heavy model.")
+            if result.skipped > 0:
+                st.caption(f"{result.skipped} item(s) were returned but failed schema validation.")
+            with st.expander("🔍 Raw Claude response (debug)", expanded=True):
+                st.code(result.raw_response or "(empty response)", language="json")
 
 st.divider()
 

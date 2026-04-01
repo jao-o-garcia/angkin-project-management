@@ -96,6 +96,7 @@ This is the core extraction loop. The PM controls the order and pace of analysis
 - Formula: Adjusted Manhours = Base Manhours ÷ Efficiency Rate
 - Output: Manhour summary per trade, per work item
 
+
 ### Step 5 — Schedule & Crew Calculation
 - Crew Size = Adjusted Manhours ÷ (Target Duration × Working Hours per Day)
 - Activities sequenced with logical dependencies per trade

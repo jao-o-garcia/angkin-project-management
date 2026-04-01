@@ -30,12 +30,21 @@ If no items apply, return: []
 """
 
 
+class ExtractionResult:
+    """Wraps extraction output with debug info."""
+
+    def __init__(self, items: list[BOQItem], raw_response: str, skipped: int = 0):
+        self.items = items
+        self.raw_response = raw_response
+        self.skipped = skipped
+
+
 def extract_scope_from_pages(
     images: list[bytes],
     scope: str,
     drawing_types: list[str],
     use_heavy_model: bool = False,
-) -> list[BOQItem]:
+) -> ExtractionResult:
     """Send selected page images to Claude for scope-specific extraction.
 
     Args:
@@ -45,7 +54,7 @@ def extract_scope_from_pages(
         use_heavy_model: Use claude-opus-4-6 for complex structural drawings.
 
     Returns:
-        List of validated BOQItem instances.
+        ExtractionResult with validated BOQItem list and raw API response.
     """
     if not ANTHROPIC_API_KEY:
         raise ValueError("ANTHROPIC_API_KEY is not set. Add it to your .env file.")
@@ -57,6 +66,7 @@ def extract_scope_from_pages(
 
     content: list[dict] = []
     for idx, (img_bytes, dtype) in enumerate(zip(images, drawing_types)):
+        img_bytes = bytes(img_bytes) if not isinstance(img_bytes, bytes) else img_bytes
         b64 = base64.b64encode(img_bytes).decode("utf-8")
         content.append({
             "type": "text",
@@ -83,14 +93,15 @@ def extract_scope_from_pages(
     items_raw = _parse_json(raw)
 
     results: list[BOQItem] = []
+    skipped = 0
     for item in items_raw:
         try:
             item["scope"] = scope
             results.append(BOQItem(**item))
         except Exception:
-            continue  # skip malformed items
+            skipped += 1
 
-    return results
+    return ExtractionResult(items=results, raw_response=raw, skipped=skipped)
 
 
 def _parse_json(raw: str) -> list[dict]:
